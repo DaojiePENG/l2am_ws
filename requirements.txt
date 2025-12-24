@@ -1,0 +1,8 @@
+torch
+numpy
+datasets
+scikit-learn
+transformers[torch]
+# For visualization
+matplotlib
+seaborn

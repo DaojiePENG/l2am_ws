@@ -1,0 +1,9 @@
+
+__pycache__/
+data/
+train_*.ipynb
+outputs/
+wandb/
+*.err
+*.out
+*.log
