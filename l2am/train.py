@@ -17,33 +17,27 @@ warnings.filterwarnings("ignore", message=".*beta.*renamed.*")
 warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 
 
-# import dataset_utils
-# print(">>> dataset_utils file:", dataset_utils.__file__)
-# print(">>> Has build_prompt_pos_v2?", hasattr(dataset_utils, 'build_prompt_pos_v2'))
-# if hasattr(dataset_utils, 'build_prompt_pos_v2'):
-#     import inspect
-#     print(inspect.getsource(dataset_utils.build_prompt_pos_v2))
-
 # ======================
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r"
 CACHE_DIR = "data/cache/train_frames"
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
-
+RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
 MODEL_NAME = "allenai/longformer-base-4096"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096等
 MAX_LENGTH = 1024  # 根据模型调整最大长度
 
 # training configs
 OUTPUT_DIR = "outputs/l2a_longformer_action_classifier"
-NUM_EPOCHS = 50
+NUM_EPOCHS = 10
 PER_DEVICE_TRAIN_BATCH_SIZE = 8
 PER_DEVICE_EVAL_BATCH_SIZE = 16
 GRADIENT_ACCUMULATION_STEPS = 1
-LEARNING_RATE = 3e-5
-WANDB_RUN_NAME = "longformer-action-pred-depth"
-LOGGING_STEPS = 100
+LEARNING_RATE = 2.2e-5
+WARMUP_RATIO = 0.015  # 学习率预热比例
+WANDB_RUN_NAME = "longformer-action-pred-depth-sem"
+LOGGING_STEPS = 50
 EVAL_STEPS = 500
 SAVE_STEPS = 500
 
@@ -135,12 +129,6 @@ def main():
         class_weights=class_weights,
         cache_dir=HF_CACHE_DIR,  # ← 和 download_model.py 一致
     )
-
-    # model = AutoModelForSequenceClassification.from_pretrained(
-    #     MODEL_NAME,
-    #     num_labels=num_labels,
-    #     problem_type="single_label_classification"
-    # )
     
     # 检查可训练参数数量
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -149,10 +137,6 @@ def main():
     print(f"Trainable params: {trainable_params / 1e6:.1f}M ({trainable_params == total_params})")
 
     # Step 6: 定义评估指标
-    # def compute_metrics(eval_pred):
-    #     preds, labels = eval_pred
-    #     preds = np.argmax(preds, axis=1)
-    #     return {"accuracy": accuracy_score(labels, preds)}
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
         preds = np.argmax(logits, axis=1)
@@ -177,7 +161,7 @@ def main():
         per_device_eval_batch_size=PER_DEVICE_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=LEARNING_RATE,          # ←←← 关键修改：设置学习率
-        warmup_ratio=0.1,
+        warmup_ratio=WARMUP_RATIO,                # ←←← 关键修改：设置学习率预热比例
         weight_decay=0.01,
         logging_steps=LOGGING_STEPS,
         eval_strategy="steps",
@@ -214,7 +198,11 @@ def main():
     print("🚀 Starting training...")
     # 继续之前的训练（如果有的话）
     # trainer.train(resume_from_checkpoint=True)
-    trainer.train()
+    if RESUME_FROM_CHECKPOINT is not None:
+        print(f"Resuming training from checkpoint: {RESUME_FROM_CHECKPOINT}")
+        trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)
+    else:
+        trainer.train()
 
 
     # Step 11: 保存最终模型
