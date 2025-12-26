@@ -1,4 +1,4 @@
-# train.py
+# train_chunk.py
 import os
 # os.environ["NCCL_P2P_DISABLE"] = "1"
 # os.environ["NCCL_IB_DISABLE"] = "1"
@@ -21,22 +21,23 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r"
-CACHE_DIR = "data/cache/train_frames"
+CACHE_DIR = "data/cache/train_frames_chunk4"
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
-RESUME_FROM_CHECKPOINT = "outputs/l2a_longformer_action_classifier/checkpoint-42000"  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
+RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
 MODEL_NAME = "allenai/longformer-base-4096"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096等
 MAX_LENGTH = 1024  # 根据模型调整最大长度
+NUM_CHUNK = 4  # 与 dataset_utils 一致
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_longformer_action_classifier"
-NUM_EPOCHS = 50
+OUTPUT_DIR = "outputs/l2a_longformer_action_classifier_chunk4"
+NUM_EPOCHS = 20
 PER_DEVICE_TRAIN_BATCH_SIZE = 12
 PER_DEVICE_EVAL_BATCH_SIZE = 96
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 3e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "longformer-action-pred-depth-sem"
+WANDB_RUN_NAME = "longformer-action-chunk-pred-depth-sem"
 LOGGING_STEPS = 50
 EVAL_STEPS = 500
 SAVE_STEPS = 500
@@ -44,7 +45,7 @@ SAVE_STEPS = 500
 # ======================
 # 2. 加载或预处理数据集
 # ======================
-from dataset_utils import get_or_create_dataset
+from dataset_utils import get_or_create_dataset_chunk
 
 
 # ======================
@@ -63,15 +64,12 @@ def main():
                                               clean_up_tokenization_spaces=True  # 保持当前行为（清理空格）
                                               )
     # Step 1: 获取帧级数据集
-    ds = get_or_create_dataset(DATA_DIR, CACHE_DIR)
+    ds = get_or_create_dataset_chunk(DATA_DIR, CACHE_DIR)
 
     # Step 2: 划分训练/验证集
     ds = ds.train_test_split(test_size=0.05, seed=42)
     train_ds = ds["train"]
     eval_ds = ds["test"]
-    # from collections import Counter
-    # actions = [ex["action"] for ex in train_ds]
-    # print("Action distribution:", Counter(actions))
 
     # Step 3: Tokenize
     # 如果没有事先保存的数据集，则创建数据集
@@ -93,8 +91,9 @@ def main():
             remove_columns=["prompt"]
         )
 
-        tokenized_train = tokenized_train.rename_column("action", "labels")
-        tokenized_eval = tokenized_eval.rename_column("action", "labels")
+        # 在 train.py 的 tokenization 部分：
+        tokenized_train = tokenized_train.rename_column("action_chunk", "labels")
+        tokenized_eval = tokenized_eval.rename_column("action_chunk", "labels")
 
         # 保存数据集以后训练时可直接加载
         tokenized_train.save_to_disk(os.path.join(OUTPUT_DIR, "tokenized_train"))
@@ -105,7 +104,6 @@ def main():
     print(f"Number of action classes: {num_labels}")
 
     # Step 5: 加载模型
-    from model_zoo import WeightedSequenceClassifier
     # 计算action权重
     from sklearn.utils.class_weight import compute_class_weight
     import numpy as np
@@ -114,20 +112,22 @@ def main():
     prompts = np.array(train_ds["prompt"])
     # 打印一个prompt示例：
     print("Example prompt:", prompts[0])
+    print("Example labels chunk:", train_ds[0]["action_chunk"])
     class_weights = compute_class_weight(
         class_weight="balanced",
         classes=np.unique(labels),
         y=labels
     )
-    # class_weights = torch.tensor(class_weights, dtype=torch.float).to("cuda")  # 或 "cpu"
     class_weights = torch.tensor(class_weights, dtype=torch.float) # 多卡训练时放在 Trainer 里处理
     print("Class weights:", class_weights)
 
-    model = WeightedSequenceClassifier(
+    from model_zoo import MultiStepWeightedClassifier
+    model = MultiStepWeightedClassifier(
         MODEL_NAME,
         num_labels=num_labels,
         class_weights=class_weights,
-        cache_dir=HF_CACHE_DIR,  # ← 和 download_model.py 一致
+        num_steps=NUM_CHUNK,
+        cache_dir=HF_CACHE_DIR,
     )
     
     # 检查可训练参数数量
@@ -138,20 +138,62 @@ def main():
 
     # Step 6: 定义评估指标
     def compute_metrics(eval_pred):
-        logits, labels = eval_pred
-        preds = np.argmax(logits, axis=1)
-        
-        # Overall
-        acc = accuracy_score(labels, preds)
-        
-        # Per-class recall (critical for rare class)
-        report = classification_report(labels, preds, output_dict=True, zero_division=0)
-        metrics = {"accuracy": acc}
-        for i in range(4):
-            metrics[f"recall_class_{i}"] = report[str(i)]["recall"]
-            metrics[f"f1_class_{i}"] = report[str(i)]["f1-score"]
-        
+        logits, labels = eval_pred  # logits: (N, NUM_CHUNK, num_labels), labels: (N, NUM_CHUNK)
+        preds = np.argmax(logits, axis=-1)  # (N, NUM_CHUNK)
+
+        metrics = {}
+        total_acc = 0.0
+
+        # 假设 num_labels = 4（根据你的数据）
+        num_labels = logits.shape[-1]
+
+        for step in range(NUM_CHUNK):
+            # 取出当前 step 的标签和预测
+            step_labels = labels[:, step]
+            step_preds = preds[:, step]
+
+            # 过滤掉 ignore_index (-100)
+            valid_mask = step_labels != -100
+            if not np.any(valid_mask):
+                # 如果该 step 没有有效样本（比如全是 padding），跳过
+                for cls_id in range(num_labels):
+                    metrics[f"step{step}_recall_class_{cls_id}"] = 0.0
+                    metrics[f"step{step}_f1_class_{cls_id}"] = 0.0
+                metrics[f"step{step}_acc"] = 0.0
+                continue
+
+            step_labels = step_labels[valid_mask]
+            step_preds = step_preds[valid_mask]
+
+            # Accuracy
+            acc = accuracy_score(step_labels, step_preds)
+            metrics[f"step{step}_acc"] = acc
+            total_acc += acc
+
+            # Classification report per class
+            report = classification_report(
+                step_labels, step_preds,
+                labels=list(range(num_labels)),  # 显式指定所有类别（即使未出现）
+                output_dict=True,
+                zero_division=0
+            )
+
+            for cls_id in range(num_labels):
+                cls_str = str(cls_id)
+                metrics[f"step{step}_recall_class_{cls_id}"] = report[cls_str]["recall"]
+                metrics[f"step{step}_f1_class_{cls_id}"] = report[cls_str]["f1-score"]
+
+        metrics["mean_step_acc"] = total_acc / NUM_CHUNK
+
+        # 可选：保留第一步的总体指标用于兼容或对比
+        if "step0_acc" in metrics:
+            metrics["first_step_acc"] = metrics["step0_acc"]
+            for cls_id in range(num_labels):
+                metrics[f"first_step_recall_class_{cls_id}"] = metrics[f"step0_recall_class_{cls_id}"]
+                metrics[f"first_step_f1_class_{cls_id}"] = metrics[f"step0_f1_class_{cls_id}"]
+
         return metrics
+
 
     # Step 7: 训练参数
     training_args = TrainingArguments(
@@ -169,7 +211,7 @@ def main():
         save_strategy="steps",
         save_steps=SAVE_STEPS,
         load_best_model_at_end=True,
-        metric_for_best_model="eval_f1_class_0",  # ←←← 关键修改：以罕见类F1为最佳模型选择标准
+        metric_for_best_model="eval_step0_f1_class_0",  # ←←← 关键修改：以罕见类F1为最佳模型选择标准
         greater_is_better=True,
         save_total_limit=2,
         report_to="wandb",                 # ←←← 关键：启用 wandb
@@ -177,7 +219,7 @@ def main():
         # report_to="none",
         seed=42,
         dataloader_num_workers=4,
-        ddp_find_unused_parameters=False,  # ←←← 添加这一行来关闭ddp的unused parameter检查
+        ddp_find_unused_parameters=True,  # ←←← 添加这一行来打开ddp的unused parameter检查
     )
 
     # Step 8: 数据整理器
