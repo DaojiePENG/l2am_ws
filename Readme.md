@@ -49,3 +49,11 @@ Results are similar to the follows:
 An example of the formulated prompt is shown in [resources/longest_example.txt](resources/longest_example.txt)
 
 Note: If you sccessfully run the notebook, the above results can be found at `outputs/l2a_longformer_action_classifier`.
+
+### 3. Inference
+
+Refer to [inference.ipynb](inference.ipynb) for the usage of the model.
+
+The trained model checkpoints are saved at `outputs/`. Moddels under `outputs/` will be updated while training. So copies of the stable trained model from `outputs/` are saved to `data/` for inference example. 
+
+It is advised to use `ActionChunkPredictor` api class for action chunk inference as described in Section 4 of [inference.ipynb](inference.ipynb).
