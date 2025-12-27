@@ -157,7 +157,7 @@ def get_or_create_dataset(data_dir, cache_dir):
         batched=True,
         remove_columns=raw_ds.column_names,
         desc="Building text prompts",
-        num_proc=4  # 并行加速（可选）
+        num_proc=16  # 并行加速（可选）
     )
 
     print(f"Total frames: {len(frame_ds)}")

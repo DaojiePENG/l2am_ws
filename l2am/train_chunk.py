@@ -25,20 +25,20 @@ CACHE_DIR = "data/cache/train_frames_chunk4"
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
 RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
-MODEL_NAME = "allenai/longformer-base-4096"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096等
+MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096、google/bigbird-roberta-base等
 MAX_LENGTH = 1024  # 根据模型调整最大长度
 NUM_CHUNK = 4  # 与 dataset_utils 一致
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_longformer_action_classifier_chunk4"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4"
 NUM_EPOCHS = 20
 PER_DEVICE_TRAIN_BATCH_SIZE = 12
-PER_DEVICE_EVAL_BATCH_SIZE = 96
+PER_DEVICE_EVAL_BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = 1
-LEARNING_RATE = 3e-5
+LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "longformer-action-chunk-pred-depth-sem"
-LOGGING_STEPS = 50
+WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem"
+LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
 
@@ -59,15 +59,23 @@ from dataset_utils import tokenize_function
 # ======================
 def main():
     # 加载分词器
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME,
-                                              cache_dir=HF_CACHE_DIR,  # ← 和 download_model.py 一致
-                                              clean_up_tokenization_spaces=True  # 保持当前行为（清理空格）
-                                              )
+    from transformers import BigBirdTokenizer
+
+    tokenizer = BigBirdTokenizer.from_pretrained(
+        MODEL_NAME,
+        cache_dir=HF_CACHE_DIR,
+        clean_up_tokenization_spaces=True,
+    )
+    # tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME,
+    #                                           cache_dir=HF_CACHE_DIR,  # ← 和 download_model.py 一致
+    #                                           clean_up_tokenization_spaces=True  # 保持当前行为（清理空格）
+    #                                           )
+    
     # Step 1: 获取帧级数据集
     ds = get_or_create_dataset_chunk(DATA_DIR, CACHE_DIR)
 
     # Step 2: 划分训练/验证集
-    ds = ds.train_test_split(test_size=0.05, seed=42)
+    ds = ds.train_test_split(test_size=0.01, seed=42)
     train_ds = ds["train"]
     eval_ds = ds["test"]
 
@@ -218,8 +226,9 @@ def main():
         run_name=WANDB_RUN_NAME,    # ← 可选：给实验命名
         # report_to="none",
         seed=42,
-        dataloader_num_workers=4,
+        dataloader_num_workers=16,
         ddp_find_unused_parameters=True,  # ←←← 添加这一行来打开ddp的unused parameter检查
+        save_safetensors=False,  # ←←← 关键！禁用 safetensors以避免兼容性问题
     )
 
     # Step 8: 数据整理器

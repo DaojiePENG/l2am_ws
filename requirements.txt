@@ -3,6 +3,8 @@ numpy
 datasets
 scikit-learn
 transformers[torch]
+tiktoken
+sentencepiece
 # For visualization
 matplotlib
 seaborn
