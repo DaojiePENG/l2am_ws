@@ -79,7 +79,8 @@ def prepare_text_samples_batch_chunk(batch):
                 if t + k < total_frames:
                     chunk.append(frames[t + k]["action"])
                 else:
-                    chunk.append(-100)  # ignore index
+                    # chunk.append(-100)  # ignore index
+                    chunk.append(0)  # stop index
             all_action_chunks.append(chunk)
 
     return {
@@ -114,7 +115,8 @@ def prepare_text_samples_batch_chunk_v1(batch):
                 if t + k < total_frames:
                     chunk.append(frames[t + k]["action"])
                 else:
-                    chunk.append(-100)  # ignore index
+                    # chunk.append(-100)  # ignore index
+                    chunk.append(0)  # stop index
             all_action_chunks.append(chunk)
             all_actions.append(frames[t]["action"])  # 记录当前步的单步动作
 
@@ -157,7 +159,8 @@ def get_or_create_dataset(data_dir, cache_dir):
         batched=True,
         remove_columns=raw_ds.column_names,
         desc="Building text prompts",
-        num_proc=16  # 并行加速（可选）
+        num_proc=16,  # 并行加速（可选）
+        load_from_cache_file=False  # ← 关键！强制重新计算
     )
 
     print(f"Total frames: {len(frame_ds)}")

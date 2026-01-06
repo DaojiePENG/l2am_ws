@@ -21,22 +21,22 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r"
-CACHE_DIR = "data/cache/train_frames"
+CACHE_DIR = "data/cache/train_frames1"
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
-RESUME_FROM_CHECKPOINT = "outputs/l2a_bigbird_action_classifier/checkpoint-4000"  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
+RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
 MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096、google/bigbird-roberta-base等
 MAX_LENGTH = 1024  # 根据模型调整最大长度
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier1"
 NUM_EPOCHS = 50
 PER_DEVICE_TRAIN_BATCH_SIZE = 12
 PER_DEVICE_EVAL_BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = 1
-LEARNING_RATE = 1e-4
-WARMUP_RATIO = 0.05  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-pred-depth-sem"
+LEARNING_RATE = 6e-5
+WARMUP_RATIO = 0.02  # 学习率预热比例
+WANDB_RUN_NAME = "bigbird-action-pred-depth-sem1"
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
@@ -74,7 +74,7 @@ def main():
     ds = get_or_create_dataset(DATA_DIR, CACHE_DIR)
 
     # Step 2: 划分训练/验证集
-    ds = ds.train_test_split(test_size=0.01, seed=42)
+    ds = ds.train_test_split(test_size=0.05, seed=42)
     train_ds = ds["train"]
     eval_ds = ds["test"]
     # from collections import Counter

@@ -82,7 +82,8 @@ class MultiStepWeightedClassifier(nn.Module):
         loss = None
         if labels is not None:
             # labels: (B, num_steps)
-            loss_fct = nn.CrossEntropyLoss(weight=self.class_weights, ignore_index=-100)
+            # loss_fct = nn.CrossEntropyLoss(weight=self.class_weights, ignore_index=-100)
+            loss_fct = nn.CrossEntropyLoss(weight=self.class_weights)
             loss = 0.0
             for step in range(self.num_steps):
                 step_loss = loss_fct(

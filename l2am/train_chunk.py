@@ -31,7 +31,7 @@ NUM_CHUNK = 4  # 与 dataset_utils 一致
 
 # training configs
 OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4"
-NUM_EPOCHS = 20
+NUM_EPOCHS = 40
 PER_DEVICE_TRAIN_BATCH_SIZE = 12
 PER_DEVICE_EVAL_BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = 1
@@ -75,7 +75,7 @@ def main():
     ds = get_or_create_dataset_chunk(DATA_DIR, CACHE_DIR)
 
     # Step 2: 划分训练/验证集
-    ds = ds.train_test_split(test_size=0.01, seed=42)
+    ds = ds.train_test_split(test_size=0.1, seed=42)
     train_ds = ds["train"]
     eval_ds = ds["test"]
 
@@ -221,7 +221,7 @@ def main():
         load_best_model_at_end=True,
         metric_for_best_model="eval_step0_f1_class_0",  # ←←← 关键修改：以罕见类F1为最佳模型选择标准
         greater_is_better=True,
-        save_total_limit=2,
+        save_total_limit=4,
         report_to="wandb",                 # ←←← 关键：启用 wandb
         run_name=WANDB_RUN_NAME,    # ← 可选：给实验命名
         # report_to="none",
