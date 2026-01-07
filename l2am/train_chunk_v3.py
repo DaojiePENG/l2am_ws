@@ -17,7 +17,9 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r_v3/train/10"
-CACHE_DIR = "data/cache/train_frames_chunk4_v3_10"
+CACHE_DIR = "data/cache/train_frames_chunk8_v3_10"
+VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/10"
+VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk8_v3_10"
 NUM_GRID_R = 10
 NUM_GRID_C = 10
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
@@ -25,17 +27,17 @@ RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/check
 # model configs
 MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096、google/bigbird-roberta-base等
 MAX_LENGTH = 3072  # 根据模型调整最大长度
-NUM_CHUNK = 4  # 与 dataset_utils 一致
+NUM_CHUNK = 8  # 与 dataset_utils 一致
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v3"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk8_v3"
 NUM_EPOCHS = 40
-PER_DEVICE_TRAIN_BATCH_SIZE = 12
-PER_DEVICE_EVAL_BATCH_SIZE = 128
+PER_DEVICE_TRAIN_BATCH_SIZE = 14
+PER_DEVICE_EVAL_BATCH_SIZE = 160
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem"
+WANDB_RUN_NAME = "bigbird-action-chunk8-pred-depth-sem-color-v3"  # 可选：设置 wandb 实验名称
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
@@ -67,11 +69,12 @@ def main():
     
     # Step 1: 获取帧级数据集
     ds = get_or_create_dataset_chunk_v3(DATA_DIR, CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
+    vds = get_or_create_dataset_chunk_v3(VAL_DATA_DIR, VAL_CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
 
     # Step 2: 划分训练/验证集
-    ds = ds.train_test_split(test_size=0.1, seed=42)
-    train_ds = ds["train"]
-    eval_ds = ds["test"]
+    # ds = ds.train_test_split(test_size=0.1, seed=42)
+    train_ds = ds
+    eval_ds = vds
 
     # Step 3: Tokenize
     # 如果没有事先保存的数据集，则创建数据集

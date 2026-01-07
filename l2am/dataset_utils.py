@@ -313,7 +313,7 @@ def get_or_create_dataset_chunk_v3(data_dir, cache_dir, num_grid_r=6, num_grid_c
         batched=True,
         remove_columns=raw_ds.column_names,
         desc="Building text prompts (v3)",
-        num_proc=8,  # 并行加速（可选）
+        num_proc=32,  # 并行加速（可选）
         load_from_cache_file=False  # ← 关键！强制重新计算
     )
 
