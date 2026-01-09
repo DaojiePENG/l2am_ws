@@ -82,6 +82,42 @@ def prepare_text_samples_batch(batch):
         "action": all_actions
     }
 
+import numpy as np
+def prepare_text_samples_batch_aug(batch, aug_dict):
+    all_prompts = []
+    all_actions = []
+
+    for i in range(len(batch["episodes"])):
+        ep = batch["episodes"][i]
+        episode_id = ep["episode_id"]
+        original_instr = ep["instruction"]
+        frames = ep["frames"]
+
+        # 获取所有候选指令
+        aug_entry = aug_dict.get(episode_id, {})
+        candidate_instructions = [original_instr]  # 至少包含原始指令
+
+        # 按顺序添加 augmented_instruction_1 到 augmented_instruction_10（如果存在）
+        for j in range(1, 11):
+            key = f"augmented_instruction_{j}"
+            if key in aug_entry:
+                candidate_instructions.append(aug_entry[key])
+            else:
+                break  # 假设是连续的；也可不 break，继续检查
+
+        # 对每条指令，遍历所有帧
+        for instr in candidate_instructions:
+            for frame in frames:
+                prompt = build_prompt_pos_v2(instr, frame["depth_patches"], frame["semantic_patches"])
+                all_prompts.append(prompt)
+                all_actions.append(frame["action"])
+
+    return {
+        "prompt": all_prompts,
+        "action": all_actions
+    }
+
+
 NUM_CHUNK = 4  # ← 新增全局常量
 
 def prepare_text_samples_batch_chunk(batch):
@@ -274,6 +310,48 @@ def get_or_create_dataset_v1(data_dir, cache_dir):
     print(f"Saved processed dataset to {cache_dir}")
     return frame_ds
 
+import json
+def get_or_create_dataset_v1_aug(data_dir, cache_dir, aug_instructions_path):
+    # 加载增强指令
+    with open(aug_instructions_path, 'r') as f:
+        aug_instructions = json.load(f)
+
+    # 将增强指令转换为字典形式，便于快速查找
+    aug_dict = {ep["episode_id"]: ep for ep in aug_instructions["episodes"]}
+
+    if os.path.exists(cache_dir):
+        print(f"Loading cached dataset from {cache_dir}")
+        return load_from_disk(cache_dir)
+
+    print("No cache found. Loading and processing raw JSON files...")
+    json_files = sorted(glob.glob(os.path.join(data_dir, "merged_part_*.json")))
+    if not json_files:
+        raise FileNotFoundError(f"No merged_part_*.json files in {data_dir}")
+
+    print(f"Found {len(json_files)} files. Loading...")
+    raw_ds = load_dataset("json", data_files=json_files, split="train")
+
+    # 打印读取的所有.json文件路径
+    print("Loaded JSON files:")
+    for f in json_files:
+        print(f" - {f}")
+
+    print("Expanding episodes to frames...")
+    frame_ds = raw_ds.map(
+        lambda batch: prepare_text_samples_batch_aug(batch, aug_dict),
+        batched=True,
+        remove_columns=raw_ds.column_names,
+        desc="Building text prompts",
+        num_proc=32,  # 并行加速（可选）
+        load_from_cache_file=False  # ← 关键！强制重新计算
+    )
+
+    print(f"Total frames: {len(frame_ds)}")
+    os.makedirs(os.path.dirname(cache_dir), exist_ok=True)
+    frame_ds.save_to_disk(cache_dir)
+    print(f"Saved processed dataset to {cache_dir}")
+    return frame_ds
+
 from collections import Counter
 def get_or_create_dataset_chunk(data_dir, cache_dir):
     if os.path.exists(cache_dir):
@@ -378,3 +456,56 @@ def tokenize_function(examples, tokenizer, max_length=1024):
         max_length=max_length,  # 根据模型调整最大长度
         padding=False  # 由 DataCollator 动态 padding
     )
+
+# ======================
+# 3. Tokenize 函数（含基础Mask策略）
+# ======================
+import random
+import torch
+
+def tokenize_function_mask(examples, tokenizer, max_length=1024, mask_prob=0.15):
+    """
+    扩展tokenize函数，添加类似RoBERTa的基础Mask策略
+    - 随机选择15%的token进行掩码操作
+    - 80%概率替换为[MASK]，10%概率替换为随机token，10%概率保留原token
+    """
+    # 基础tokenize处理
+    outputs = tokenizer(
+        examples["prompt"],
+        truncation=True,
+        max_length=max_length,
+        padding=False,
+        return_tensors="pt" if isinstance(examples["prompt"], str) else None  # 保持批次维度
+    )
+    
+    # 仅对输入_ids进行掩码操作（适用于训练阶段）
+    if "input_ids" in outputs:
+        input_ids = outputs["input_ids"].clone()  # 避免修改原tensor
+        vocab_size = tokenizer.vocab_size
+        mask_token_id = tokenizer.mask_token_id
+        
+        # 生成掩码概率矩阵（仅对非特殊token进行掩码）
+        special_tokens_mask = tokenizer.get_special_tokens_mask(input_ids, already_has_special_tokens=True)
+        special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+        mask_prob_matrix = torch.full(input_ids.shape, mask_prob, dtype=torch.float32)
+        mask_prob_matrix.masked_fill_(special_tokens_mask, value=0.0)  # 特殊token不掩码
+        
+        # 随机选择要掩码的位置
+        mask_indices = torch.bernoulli(mask_prob_matrix).bool()
+        
+        # 80%概率替换为[MASK]
+        replace_with_mask = torch.bernoulli(torch.full(input_ids.shape, 0.8)).bool() & mask_indices
+        input_ids[replace_with_mask] = mask_token_id
+        
+        # 10%概率替换为随机token
+        remaining_mask = mask_indices & ~replace_with_mask
+        replace_with_random = torch.bernoulli(torch.full(input_ids.shape, 0.5)).bool() & remaining_mask  # 0.5是因为剩下的10%在remaining_mask中占一半
+        random_tokens = torch.randint(0, vocab_size, input_ids.shape, dtype=input_ids.dtype)
+        input_ids[replace_with_random] = random_tokens[replace_with_random]
+        
+        # 剩下10%保持原token（无需额外操作）
+        outputs["input_ids"] = input_ids
+        outputs["labels"] = input_ids.clone()  # 标签为原始token（仅掩码位置有效）
+        outputs["labels"][~mask_indices] = -100  # 非掩码位置标签设为-100（忽略）
+    
+    return outputs
