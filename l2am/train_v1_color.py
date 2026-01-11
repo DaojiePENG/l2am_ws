@@ -1,5 +1,7 @@
-# train_v1_aug.py
+# train.py
 import os
+# os.environ["NCCL_P2P_DISABLE"] = "1"
+# os.environ["NCCL_IB_DISABLE"] = "1"
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from transformers import (
@@ -19,12 +21,9 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r_v3/train/6"
-CACHE_DIR = "data/cache/train_frames_v1_6_aug"
-AUG_INSTRUCTION_FILE = "data/l2am_r2r_v3/train_augmented_instructions_filtered_0.8.json"
-
+CACHE_DIR = "data/cache/train_frames_v1_color_6"
 VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/6"
-VAL_CACHE_DIR = "data/cache/val_seen_frames_v1_6_aug"
-
+VAL_CACHE_DIR = "data/cache/val_seen_frames_v1_color_6"
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
 RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
@@ -32,14 +31,14 @@ MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-
 MAX_LENGTH = 1024  # 根据模型调整最大长度
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_v1_6_aug"
-NUM_EPOCHS = 4
-PER_DEVICE_TRAIN_BATCH_SIZE = 12
-PER_DEVICE_EVAL_BATCH_SIZE = 128
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_v1_color_6"
+NUM_EPOCHS = 30
+PER_DEVICE_TRAIN_BATCH_SIZE = 9
+PER_DEVICE_EVAL_BATCH_SIZE = 96
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-pred-depth-sem_v1_6_aug"
+WANDB_RUN_NAME = "bigbird-action-pred-depth-sem_v1_color_6"
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
@@ -47,8 +46,7 @@ SAVE_STEPS = 500
 # ======================
 # 2. 加载或预处理数据集
 # ======================
-from dataset_utils import get_or_create_dataset_v1_aug
-from dataset_utils import get_or_create_dataset_v1
+from dataset_utils import get_or_create_dataset_v1_color as get_or_create_dataset
 
 
 # ======================
@@ -75,8 +73,8 @@ def main():
     #                                           )
 
     # Step 1: 获取帧级数据集
-    ds = get_or_create_dataset_v1_aug(DATA_DIR, CACHE_DIR, AUG_INSTRUCTION_FILE)
-    vds = get_or_create_dataset_v1(VAL_DATA_DIR, VAL_CACHE_DIR)
+    ds = get_or_create_dataset(DATA_DIR, CACHE_DIR)
+    vds = get_or_create_dataset(VAL_DATA_DIR, VAL_CACHE_DIR)
 
     # Step 2: 划分训练/验证集
     # ds = ds.train_test_split(test_size=0.05, seed=42)
@@ -96,13 +94,13 @@ def main():
             lambda x: tokenize_function(x, tokenizer, max_length=MAX_LENGTH),
             batched=True,
             remove_columns=["prompt"],
-            num_proc=32  # 👈 关键！用多进程并行 tokenize
+            num_proc=48  # 👈 关键！用多进程并行 tokenize
         )
         tokenized_eval = eval_ds.map(
             lambda x: tokenize_function(x, tokenizer, max_length=MAX_LENGTH),
             batched=True,
             remove_columns=["prompt"],
-            num_proc=32  # 👈 关键！用多进程并行 tokenize
+            num_proc=48  # 👈 关键！用多进程并行 tokenize
         )
 
         tokenized_train = tokenized_train.rename_column("action", "labels")
