@@ -4,8 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:4                # 显式申请 4 块 GPU（强烈建议加上！）
-#SBATCH --output=train_ddp_%j.out
-#SBATCH --error=train_ddp_%j.err
+#SBATCH --output=train_ddp_8_%j.out
+#SBATCH --error=train_ddp_8_%j.err
 #SBATCH --nodelist=4090node2
 
 
