@@ -20,10 +20,10 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # ======================
 # 1. 配置路径
 # ======================
-DATA_DIR = "data/l2am_r2r_v3/train/6"
-CACHE_DIR = "data/cache/train_frames_v1_6"
-VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/6"
-VAL_CACHE_DIR = "data/cache/val_seen_frames_v1_6"
+DATA_DIR = "data/l2am_r2r_v3/train/8"
+CACHE_DIR = "data/cache/train_frames_v1_8"
+VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/8"
+VAL_CACHE_DIR = "data/cache/val_seen_frames_v1_8"
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
 RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
@@ -31,14 +31,14 @@ MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-
 MAX_LENGTH = 1024  # 根据模型调整最大长度
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_v1_6"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_v1_8"
 NUM_EPOCHS = 30
-PER_DEVICE_TRAIN_BATCH_SIZE = 12
-PER_DEVICE_EVAL_BATCH_SIZE = 128
+PER_DEVICE_TRAIN_BATCH_SIZE = 10
+PER_DEVICE_EVAL_BATCH_SIZE = 88
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-pred-depth-sem_v1_6"
+WANDB_RUN_NAME = "bigbird-action-pred-depth-sem_v1_8"
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
