@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 用法: scripts/launch_train_chunk_v3.sh <id> [suffix]
-# 例如: scripts/launch_train_chunk_v3.sh 01 chunk8_v3
+# 用法: scripts/launch_train_chunk_v1_m08.sh <id> [suffix]
+# 例如: scripts/launch_train_chunk_v1_m08.sh 01 chunk_v1_m08
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <task_id> [suffix]"
@@ -24,8 +24,8 @@ echo "🆔 PID file: ${PID_FILE}"
 nohup bash -c '
     torchrun \
         --nproc_per_node=1 \
-        --master_port=29502 \
-        l2am/train_chunk_v3.py \
+        --master_port=29501 \
+        l2am/train_chunk_v1_m08.py \
         > "'"$LOG_FILE"'" 2> "'"$ERR_FILE"'"
     
     # 训练结束后自动清理 PID 文件
@@ -40,9 +40,9 @@ sleep 3
 
 # 尝试找到实际占用 GPU 的 python 子进程 PID
 PYTHON_PID=""
-# 方法：查找 WRAPPER_PID 的子进程中包含 "train_chunk_v3.py" 的 python 进程
+# 方法：查找 WRAPPER_PID 的子进程中包含 "train_v1_aug.py" 的 python 进程
 while read -r pid ppid cmd; do
-    if [[ "$ppid" == "$WRAPPER_PID" ]] && [[ "$cmd" == *"python"* ]] && [[ "$cmd" == *"train_chunk_v3.py"* ]]; then
+    if [[ "$ppid" == "$WRAPPER_PID" ]] && [[ "$cmd" == *"python"* ]] && [[ "$cmd" == *"train_v1_aug.py"* ]]; then
         PYTHON_PID="$pid"
         break
     fi
