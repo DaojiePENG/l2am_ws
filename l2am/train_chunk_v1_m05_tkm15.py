@@ -89,6 +89,8 @@ def main():
     vds_sampled = vds.shuffle(seed=42).select(range(int(len(vds) * augment_ratio)))
     vuds_sampled = vuds.shuffle(seed=42).select(range(int(len(vuds) * augment_ratio)))
     train_ds = concatenate_datasets([train_ds, vds_sampled, vuds_sampled])
+    # 打乱训练集
+    train_ds = train_ds.shuffle(seed=42)
 
     # Step 3: Tokenize
     # 如果没有事先保存的数据集，则创建数据集

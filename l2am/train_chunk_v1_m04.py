@@ -33,17 +33,17 @@ MAX_LENGTH = 1024  # 根据模型调整最大长度
 NUM_CHUNK = 4  # 与 dataset_utils 一致
 
 # 数据增强比例：从验证集中抽取一部分数据加入训练集
-augment_ratio = 0.5  # 可调整比例
+augment_ratio = 0.4  # 可调整比例
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v1_6_m05"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v1_6_m04"
 NUM_EPOCHS = 30
 PER_DEVICE_TRAIN_BATCH_SIZE = 12
 PER_DEVICE_EVAL_BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem-v1-6-m05"  # 可选：设置 wandb 实验名称
+WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem-v1-6-m04"  # 可选：设置 wandb 实验名称
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500

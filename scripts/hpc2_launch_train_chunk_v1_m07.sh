@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=l2am_chunk8_v3  # 任务名称
+#SBATCH --job-name=l2am_chunk_v1_m07  # 任务名称
 #SBATCH -p i64m1tga800u                     # 指定GPU分区（根据HPC文档，可替换为实际可用分区如normal等）
-#SBATCH --output=l2am_chunk8_v3_%j.out      # 主日志
-#SBATCH --error=l2am_chunk8_v3_%j.err       # 错误日志
+#SBATCH --output=l2am_chunk_v1_m07_%j.out      # 主日志
+#SBATCH --error=l2am_chunk_v1_m07_%j.err       # 错误日志
 #SBATCH --nodes=1                        # 单节点
 #SBATCH --gres=gpu:1                     # 单张GPU（80G）
-#SBATCH --cpus-per-task=12               # 足够CPU核心支持并行
+#SBATCH --cpus-per-task=6               # 足够CPU核心支持并行
 #SBATCH --mem=80G                        # 充足内存
 #SBATCH --time=168:00:00                  # 总运行时间
 
@@ -32,28 +32,19 @@ export TOKENIZERS_PARALLELISM=false
 
 PYTHON="/hpc2hdd/home/zli514/miniforge3/envs/l2am/bin/python"
 
-# $PYTHON -m torch.distributed.run \
-#     --nproc_per_node=6 \
-#     --master_port=29500 \
-#     l2am/train_chunk_v3.py
-
-
-PYTHON="/hpc2hdd/home/zli514/miniforge3/envs/l2am/bin/python"
-
 # 获取当前作业的节点列表
 NODE_LIST=$(scontrol show hostnames $SLURM_JOB_NODELIST)
 MASTER_ADDR=$(head -n 1 <<< "$NODE_LIST")
 MASTER_PORT=29500
 NUM_NODES=$SLURM_JOB_NUM_NODES
-GPUS_PER_NODE=6   # 必须和 --gres=gpu:6 一致
+GPUS_PER_NODE=1   # 必须和 --gres=gpu:6 一致
 
 echo "Running on nodes: $NODE_LIST"
 echo "Master: $MASTER_ADDR:$MASTER_PORT"
 echo "Total processes: $((NUM_NODES * GPUS_PER_NODE))"
 
+
 $PYTHON -m torch.distributed.run \
     --nproc_per_node=$GPUS_PER_NODE \
-    --nnodes=$NUM_NODES \
-    --node_rank=$SLURM_PROCID \          # Slurm 自动提供（从 0 开始）
-    --master_port=$MASTER_PORT \
-    l2am/train_chunk_v3.py
+    --master_port=29500 \
+    l2am/train_chunk_v1_m07.py

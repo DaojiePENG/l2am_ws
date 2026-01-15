@@ -17,11 +17,11 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r_v3/train/6"
-CACHE_DIR = "data/cache/train_frames_chunk4_v1_6_m05"
+CACHE_DIR = "data/cache/train_frames_chunk4_v1_6_m08"
 VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/6"
-VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_v1_6_m05"
+VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_v1_6_m08"
 VAL_U_DATA_DIR = "data/l2am_r2r_v3/val_unseen/6"
-VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_v1_6_m05"
+VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_v1_6_m08"
 
 NUM_GRID_R = 6
 NUM_GRID_C = 6
@@ -33,17 +33,17 @@ MAX_LENGTH = 1024  # 根据模型调整最大长度
 NUM_CHUNK = 4  # 与 dataset_utils 一致
 
 # 数据增强比例：从验证集中抽取一部分数据加入训练集
-augment_ratio = 0.5  # 可调整比例
+augment_ratio = 0.6  # 可调整比例
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v1_6_m05"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v1_6_m06"
 NUM_EPOCHS = 30
 PER_DEVICE_TRAIN_BATCH_SIZE = 12
 PER_DEVICE_EVAL_BATCH_SIZE = 128
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem-v1-6-m05"  # 可选：设置 wandb 实验名称
+WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem-v1-6-m06"  # 可选：设置 wandb 实验名称
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
