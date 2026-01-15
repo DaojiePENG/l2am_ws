@@ -573,52 +573,94 @@ def tokenize_function(examples, tokenizer, max_length=1024):
 # ======================
 # 3. Tokenize 函数（含基础Mask策略）
 # ======================
-import random
 import torch
+import random
+from typing import Dict, List, Any
 
-def tokenize_function_mask(examples, tokenizer, max_length=1024, mask_prob=0.15):
+def tokenize_function_mask_v1(
+    examples: Dict[str, List[Any]],
+    tokenizer,
+    max_length: int = 1024,
+    mask_prob: float = 0.15,
+    special_token_masking: bool = False  # 是否允许 mask 特殊 token（通常设为 False）
+) -> Dict[str, List[List[int]]]:
     """
-    扩展tokenize函数，添加类似RoBERTa的基础Mask策略
-    - 随机选择15%的token进行掩码操作
-    - 80%概率替换为[MASK]，10%概率替换为随机token，10%概率保留原token
+    Tokenize prompts and apply random token masking as data augmentation.
+    
+    This is NOT MLM! The labels remain the original action_chunk.
+    Masking is only applied to input_ids to simulate partial observation/noisy instruction.
+    
+    Args:
+        examples: {"prompt": [str1, str2, ...]}
+        tokenizer: HuggingFace tokenizer (e.g., BigBirdTokenizer)
+        max_length: max sequence length
+        mask_prob: probability of masking a non-special token
+        special_token_masking: whether to allow masking [CLS], [SEP], etc. (not recommended)
+    
+    Returns:
+        {"input_ids": [[id1, id2, ...], ...]}  # list of lists
     """
-    # 基础tokenize处理
-    outputs = tokenizer(
+    # Step 1: Tokenize to get input_ids and attention_mask as lists
+    batch_encoding = tokenizer(
         examples["prompt"],
         truncation=True,
         max_length=max_length,
         padding=False,
-        return_tensors="pt" if isinstance(examples["prompt"], str) else None  # 保持批次维度
+        return_attention_mask=False,
+        return_tensors=None  # Important: return Python lists
     )
     
-    # 仅对输入_ids进行掩码操作（适用于训练阶段）
-    if "input_ids" in outputs:
-        input_ids = outputs["input_ids"].clone()  # 避免修改原tensor
-        vocab_size = tokenizer.vocab_size
-        mask_token_id = tokenizer.mask_token_id
-        
-        # 生成掩码概率矩阵（仅对非特殊token进行掩码）
-        special_tokens_mask = tokenizer.get_special_tokens_mask(input_ids, already_has_special_tokens=True)
-        special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
-        mask_prob_matrix = torch.full(input_ids.shape, mask_prob, dtype=torch.float32)
-        mask_prob_matrix.masked_fill_(special_tokens_mask, value=0.0)  # 特殊token不掩码
-        
-        # 随机选择要掩码的位置
-        mask_indices = torch.bernoulli(mask_prob_matrix).bool()
-        
-        # 80%概率替换为[MASK]
-        replace_with_mask = torch.bernoulli(torch.full(input_ids.shape, 0.8)).bool() & mask_indices
-        input_ids[replace_with_mask] = mask_token_id
-        
-        # 10%概率替换为随机token
-        remaining_mask = mask_indices & ~replace_with_mask
-        replace_with_random = torch.bernoulli(torch.full(input_ids.shape, 0.5)).bool() & remaining_mask  # 0.5是因为剩下的10%在remaining_mask中占一半
-        random_tokens = torch.randint(0, vocab_size, input_ids.shape, dtype=input_ids.dtype)
-        input_ids[replace_with_random] = random_tokens[replace_with_random]
-        
-        # 剩下10%保持原token（无需额外操作）
-        outputs["input_ids"] = input_ids
-        outputs["labels"] = input_ids.clone()  # 标签为原始token（仅掩码位置有效）
-        outputs["labels"][~mask_indices] = -100  # 非掩码位置标签设为-100（忽略）
+    input_ids_list = batch_encoding["input_ids"]
+    masked_input_ids_list = []
     
-    return outputs
+    vocab_size = tokenizer.vocab_size
+    mask_token_id = tokenizer.mask_token_id
+    
+    for input_ids in input_ids_list:
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        seq_len = input_ids.size(0)
+        
+        # Get special tokens mask (1 = special token)
+        if hasattr(tokenizer, "get_special_tokens_mask"):
+            special_tokens_mask = tokenizer.get_special_tokens_mask(
+                input_ids.tolist(), already_has_special_tokens=True
+            )
+            special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+        else:
+            # Fallback: assume first and last are special (e.g., [CLS], [SEP])
+            special_tokens_mask = torch.zeros(seq_len, dtype=torch.bool)
+            if seq_len > 0:
+                special_tokens_mask[0] = True
+                if seq_len > 1:
+                    special_tokens_mask[-1] = True
+        
+        # Create mask probability matrix
+        mask_probs = torch.full((seq_len,), mask_prob, dtype=torch.float32)
+        if not special_token_masking:
+            mask_probs.masked_fill_(special_tokens_mask, 0.0)
+        
+        # Sample which tokens to mask
+        mask_indices = torch.bernoulli(mask_probs).bool()
+        
+        # 80% -> [MASK], 10% -> random token, 10% -> keep original
+        # But since this is data augmentation (not MLM), many just use 100% [MASK]
+        # We'll follow standard BERT-style for stronger regularization
+        
+        # Clone to avoid modifying original
+        masked_ids = input_ids.clone()
+        
+        # 80%: replace with [MASK]
+        replace_with_mask = torch.bernoulli(torch.full((seq_len,), 0.8)).bool() & mask_indices
+        masked_ids[replace_with_mask] = mask_token_id
+        
+        # 10%: replace with random token
+        remaining = mask_indices & ~replace_with_mask
+        replace_with_random = torch.bernoulli(torch.full((seq_len,), 0.5)).bool() & remaining
+        random_tokens = torch.randint(0, vocab_size, (seq_len,), dtype=torch.long)
+        masked_ids[replace_with_random] = random_tokens[replace_with_random]
+        
+        # 10%: keep original (do nothing)
+        
+        masked_input_ids_list.append(masked_ids.tolist())
+    
+    return {"input_ids": masked_input_ids_list}
