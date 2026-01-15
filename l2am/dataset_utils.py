@@ -144,40 +144,6 @@ NUM_CHUNK = 4  # ← 新增全局常量
 def prepare_text_samples_batch_chunk(batch):
     all_prompts = []
     all_action_chunks = []  # 存储每个样本的 [a_t, a_{t+1}, ..., a_{t+3}]
-
-    for i in range(len(batch["episodes"])):
-        ep = batch["episodes"][i]
-        instr = ep["instruction"]
-        frames = ep["frames"]
-        total_frames = len(frames)
-
-        for t in range(total_frames):
-            # 当前帧的 prompt（不变）
-            prompt = build_prompt_pos_v2(
-                instr,
-                frames[t]["depth_patches"],
-                frames[t]["semantic_patches"]
-            )
-            all_prompts.append(prompt)
-
-            # 构造未来 NUM_CHUNK 个动作，不足则用 -100 填充（PyTorch CrossEntropy 忽略 -100）
-            chunk = []
-            for k in range(NUM_CHUNK):
-                if t + k < total_frames:
-                    chunk.append(frames[t + k]["action"])
-                else:
-                    # chunk.append(-100)  # ignore index
-                    chunk.append(0)  # stop index
-            all_action_chunks.append(chunk)
-
-    return {
-        "prompt": all_prompts,
-        "action_chunk": all_action_chunks  # shape: (N, NUM_CHUNK)
-    }
-
-def prepare_text_samples_batch_chunk_v1(batch):
-    all_prompts = []
-    all_action_chunks = []  # 存储每个样本的 [a_t, a_{t+1}, ..., a_{t+3}]
     all_actions = []  # 存储单步动作 a_t，用于分析类别分布
 
 
@@ -212,6 +178,50 @@ def prepare_text_samples_batch_chunk_v1(batch):
         "action": all_actions,
         "action_chunk": all_action_chunks  # shape: (N, NUM_CHUNK)
     }
+
+
+def prepare_text_samples_batch_chunk_v1(batch, num_grid_r=6, num_grid_c=6, num_chunk=4):
+    ''' 版本3：使用 build_prompt_pos_v1 构建 prompt，不包含颜色信息'''
+    all_prompts = []
+    all_action_chunks = []  # 存储每个样本的 [a_t, a_{t+1}, ..., a_{t+3}]
+    all_actions = []  # 存储单步动作 a_t，用于分析类别分布
+
+
+    for i in range(len(batch["episodes"])):
+        ep = batch["episodes"][i]
+        instr = ep["instruction"]
+        frames = ep["frames"]
+        total_frames = len(frames)
+
+        for t in range(total_frames):
+            # 当前帧的 prompt（不变）
+            prompt = build_prompt_pos_v2(
+                instr,
+                frames[t]["depth_patches"],
+                frames[t]["semantic_patches"],
+                # frames[t]["color_patches"],
+                num_grid_r=num_grid_r,
+                num_grid_c=num_grid_c,
+            )
+            all_prompts.append(prompt)
+
+            # 构造未来 NUM_CHUNK 个动作，不足则用 0 填充（action0：停止, 符合物理控制逻辑）
+            chunk = []
+            for k in range(num_chunk):
+                if t + k < total_frames:
+                    chunk.append(frames[t + k]["action"])
+                else:
+                    # chunk.append(-100)  # ignore index
+                    chunk.append(0)  # stop index
+            all_action_chunks.append(chunk)
+            all_actions.append(frames[t]["action"])  # 记录当前步的单步动作
+
+    return {
+        "prompt": all_prompts,
+        "action": all_actions,
+        "action_chunk": all_action_chunks  # shape: (N, NUM_CHUNK)
+    }
+
 
 def prepare_text_samples_batch_chunk_v3(batch, num_grid_r=6, num_grid_c=6, num_chunk=4):
     ''' 版本3：使用 build_prompt_pos_v3 构建 prompt，包含颜色信息'''
@@ -481,6 +491,54 @@ def get_or_create_dataset_chunk_v3(data_dir, cache_dir, num_grid_r=6, num_grid_c
         remove_columns=raw_ds.column_names,
         desc="Building text prompts (v3)",
         num_proc=32,  # 并行加速（可选）
+        load_from_cache_file=False  # ← 关键！强制重新计算
+    )
+
+    # 统计类别分布
+    print(f"Total frames: {len(frame_ds)}")
+    actions = [ex["action"] for ex in frame_ds]
+    print("Action distribution:", Counter(actions))
+    all_actions_single_step = []
+    for ex in frame_ds:
+        chunk = ex["action_chunk"]
+        # 过滤掉 -100，只取有效动作
+        valid_actions = [a for a in chunk if a != -100]
+        all_actions_single_step.extend(valid_actions)
+
+    print("Flattened action distribution:", Counter(all_actions_single_step))
+    os.makedirs(os.path.dirname(cache_dir), exist_ok=True)
+    frame_ds.save_to_disk(cache_dir)
+    print(f"Saved processed dataset to {cache_dir}")
+    return frame_ds
+
+def get_or_create_dataset_chunk_v1(data_dir, cache_dir, num_grid_r=6, num_grid_c=6, num_chunk=4):
+    ''' 版本3：使用 prepare_text_samples_batch_chunk_v3 构建数据集，包含颜色信息'''
+    if os.path.exists(cache_dir):
+        print(f"Loading cached dataset from {cache_dir}")
+        return load_from_disk(cache_dir)
+
+    print("No cache found. Loading and processing raw JSON files...")
+    json_files = sorted(glob.glob(os.path.join(data_dir, "merged_part_*.json")))
+    if not json_files:
+        raise FileNotFoundError(f"No merged_part_*.json files in {data_dir}")
+
+    print(f"Found {len(json_files)} files. Loading...")
+    raw_ds = load_dataset("json", data_files=json_files, split="train")
+
+    # 打印读取的所有.json文件路径
+    print("Loaded JSON files:")
+    for f in json_files:
+        print(f" - {f}")
+
+    print("Expanding episodes to frames...")
+    frame_ds = raw_ds.map(
+        prepare_text_samples_batch_chunk_v1,
+        # 传入额外参数
+        fn_kwargs={"num_grid_r": num_grid_r, "num_grid_c": num_grid_c, "num_chunk": num_chunk},
+        batched=True,
+        remove_columns=raw_ds.column_names,
+        desc="Building text prompts (v1)",
+        num_proc=48,  # 并行加速（可选）
         load_from_cache_file=False  # ← 关键！强制重新计算
     )
 
