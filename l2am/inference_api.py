@@ -271,3 +271,41 @@ class ActionChunkPredictor:
             if a == stop_token:
                 break
         return truncated
+    
+    def predict_batch(self, prompts: list[str], batch_size: int = 128) -> list[list[int]]:
+        """
+        Predict action chunks for a batch of text prompts with controlled batch size.
+
+        Args:
+            prompts (List[str]): A list of input instructions or scene descriptions.
+            batch_size (int): Maximum number of samples to process at once. Default: 8.
+
+        Returns:
+            List[List[int]]: A list of predicted action sequences, each of length `num_steps`.
+        """
+        if not isinstance(prompts, list):
+            raise ValueError("Input 'prompts' must be a list of strings.")
+        if len(prompts) == 0:
+            return []
+
+        all_predictions = []
+
+        # Process in chunks to avoid OOM
+        for i in range(0, len(prompts), batch_size):
+            batch_prompts = prompts[i:i + batch_size]
+
+            inputs = self.tokenizer(
+                batch_prompts,
+                truncation=True,
+                padding=True,
+                max_length=self.max_length,
+                return_tensors="pt"
+            ).to(self.device)
+
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                logits = outputs["logits"]  # (B, num_steps, num_labels)
+                pred_classes = torch.argmax(logits, dim=-1)  # (B, num_steps)
+                all_predictions.extend(pred_classes.cpu().tolist())
+
+        return all_predictions
