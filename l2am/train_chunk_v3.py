@@ -88,12 +88,14 @@ def main():
         tokenized_train = train_ds.map(
             lambda x: tokenize_function(x, tokenizer, max_length=MAX_LENGTH),
             batched=True,
-            remove_columns=["prompt"]
+            remove_columns=["prompt"],
+            num_proc=48  # 👈 关键！用多进程并行 tokenize
         )
         tokenized_eval = eval_ds.map(
             lambda x: tokenize_function(x, tokenizer, max_length=MAX_LENGTH),
             batched=True,
-            remove_columns=["prompt"]
+            remove_columns=["prompt"],
+            num_proc=48  # 👈 关键！用多进程并行 tokenize
         )
 
         # 在 train.py 的 tokenization 部分：

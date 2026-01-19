@@ -17,33 +17,27 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r_v3/train/6"
-CACHE_DIR = "data/cache/train_frames_chunk4_v1_6_m05"
+CACHE_DIR = "data/cache/train_frames_chunk8_v3_6"
 VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/6"
-VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_v1_6_m05"
-VAL_U_DATA_DIR = "data/l2am_r2r_v3/val_unseen/6"
-VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_v1_6_m05"
-
+VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk8_v3_6"
 NUM_GRID_R = 6
 NUM_GRID_C = 6
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
 RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
 MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096、google/bigbird-roberta-base等
-MAX_LENGTH = 1024  # 根据模型调整最大长度
-NUM_CHUNK = 4  # 与 dataset_utils 一致
-
-# 数据增强比例：从验证集中抽取一部分数据加入训练集
-augment_ratio = 0.5  # 可调整比例
+MAX_LENGTH = 1600  # 根据模型调整最大长度
+NUM_CHUNK = 8  # 与 dataset_utils 一致
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v1_6_m05"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk8_v3_6"
 NUM_EPOCHS = 30
-PER_DEVICE_TRAIN_BATCH_SIZE = int(12*4)
-PER_DEVICE_EVAL_BATCH_SIZE = int(128*4)
+PER_DEVICE_TRAIN_BATCH_SIZE = 10
+PER_DEVICE_EVAL_BATCH_SIZE = 130
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action-chunk4-pred-depth-sem-v1-6-m05"  # 可选：设置 wandb 实验名称
+WANDB_RUN_NAME = "bigbird-action-chunk8-pred-depth-sem-color-v3-6"  # 可选：设置 wandb 实验名称
 LOGGING_STEPS = 100
 EVAL_STEPS = 500
 SAVE_STEPS = 500
@@ -51,7 +45,7 @@ SAVE_STEPS = 500
 # ======================
 # 2. 加载或预处理数据集
 # ======================
-from dataset_utils import get_or_create_dataset_chunk_v1
+from dataset_utils import get_or_create_dataset_chunk_v3
 
 
 # ======================
@@ -74,22 +68,13 @@ def main():
     )
     
     # Step 1: 获取帧级数据集
-    ds = get_or_create_dataset_chunk_v1(DATA_DIR, CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
-    vds = get_or_create_dataset_chunk_v1(VAL_DATA_DIR, VAL_CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
-    vuds = get_or_create_dataset_chunk_v1(VAL_U_DATA_DIR, VAL_U_CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
+    ds = get_or_create_dataset_chunk_v3(DATA_DIR, CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
+    vds = get_or_create_dataset_chunk_v3(VAL_DATA_DIR, VAL_CACHE_DIR, num_grid_r=NUM_GRID_R, num_grid_c=NUM_GRID_C, num_chunk=NUM_CHUNK)
 
     # Step 2: 划分训练/验证集
     # ds = ds.train_test_split(test_size=0.1, seed=42)
     train_ds = ds
     eval_ds = vds
-
-    # 将 vds 和 vuds 的一定比例数据加入训练集以增强训练
-    from datasets import concatenate_datasets
-    vds_sampled = vds.shuffle(seed=42).select(range(int(len(vds) * augment_ratio)))
-    vuds_sampled = vuds.shuffle(seed=42).select(range(int(len(vuds) * augment_ratio)))
-    train_ds = concatenate_datasets([train_ds, vds_sampled, vuds_sampled])
-    # 打乱训练集
-    train_ds = train_ds.shuffle(seed=42)
 
     # Step 3: Tokenize
     # 如果没有事先保存的数据集，则创建数据集

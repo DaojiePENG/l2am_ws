@@ -38,8 +38,8 @@ augment_ratio = 0.7  # 可调整比例
 # training configs
 OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_v1_6_m07"
 NUM_EPOCHS = 30
-PER_DEVICE_TRAIN_BATCH_SIZE = 12
-PER_DEVICE_EVAL_BATCH_SIZE = 128
+PER_DEVICE_TRAIN_BATCH_SIZE = int(12*4)
+PER_DEVICE_EVAL_BATCH_SIZE = int(128*4)
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 6e-5
 WARMUP_RATIO = 0.02  # 学习率预热比例

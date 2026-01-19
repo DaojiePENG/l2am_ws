@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 用法: scripts/launch_train_chunk_v3.sh <id> [suffix]
-# 例如: scripts/launch_train_chunk_v3.sh 01 chunk8_v3
+# 用法: scripts/launch_train_chunk_v3_6.sh <id> [suffix]
+# 例如: scripts/launch_train_chunk_v3_6.sh 01 chunk8_v3_6
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <task_id> [suffix]"
@@ -24,8 +24,8 @@ echo "🆔 PID file: ${PID_FILE}"
 nohup bash -c '
     torchrun \
         --nproc_per_node=1 \
-        --master_port=29502 \
-        l2am/train_chunk_v3.py \
+        --master_port=29503 \
+        l2am/train_chunk8_v3_6.py \
         > "'"$LOG_FILE"'" 2> "'"$ERR_FILE"'"
     
     # 训练结束后自动清理 PID 文件
