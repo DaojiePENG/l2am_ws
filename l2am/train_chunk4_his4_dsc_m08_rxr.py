@@ -16,12 +16,12 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # ======================
 # 1. 配置路径
 # ======================
-DATA_DIR = "data/l2am_r2r_v3/train/6"
-CACHE_DIR = "data/cache/train_frames_chunk4_his4_dsc_m08"
-VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/6"
-VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_his4_dsc_m08"
-VAL_U_DATA_DIR = "data/l2am_r2r_v3/val_unseen/6"
-VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_his4_dsc_m08"
+DATA_DIR = "data/l2am_rxr_v3/train/6"
+CACHE_DIR = "data/cache/train_frames_chunk4_his4_dsc_m08_rxr"
+VAL_DATA_DIR = "data/l2am_rxr_v3/val_seen/6"
+VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_his4_dsc_m08_rxr"
+VAL_U_DATA_DIR = "data/l2am_rxr_v3/val_unseen/6"
+VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_his4_dsc_m08_rxr"
 
 NUM_GRID_R = 6
 NUM_GRID_C = 6
@@ -37,14 +37,14 @@ augment_ratio = 0.96  # 可调整比例
 augment_ratio_u = 0.8  # 可调整比例
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_his4_dsc_m08"
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_his4_dsc_m08_rxr"
 NUM_EPOCHS = 30
 PER_DEVICE_TRAIN_BATCH_SIZE = 2
 PER_DEVICE_EVAL_BATCH_SIZE = 32
 GRADIENT_ACCUMULATION_STEPS = 4
 LEARNING_RATE = 4e-5
 WARMUP_RATIO = 0.08  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action_chunk4_his4_dsc_m08"  # 可选：设置 wandb 实验名称
+WANDB_RUN_NAME = "bigbird-action_chunk4_his4_dsc_m08_rxr"  # 可选：设置 wandb 实验名称
 LOGGING_STEPS = 100
 EVAL_STEPS = 1000
 SAVE_STEPS = 1000
