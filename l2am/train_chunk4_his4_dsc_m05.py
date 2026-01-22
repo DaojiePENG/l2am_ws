@@ -17,16 +17,16 @@ warnings.filterwarnings("ignore", message=".*gamma.*renamed.*")
 # 1. 配置路径
 # ======================
 DATA_DIR = "data/l2am_r2r_v3/train/6"
-CACHE_DIR = "data/cache/train_frames_chunk4_his4_dsc_m08"
+CACHE_DIR = "data/cache/train_frames_chunk4_his4_dsc_m05"
 VAL_DATA_DIR = "data/l2am_r2r_v3/val_seen/6"
-VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_his4_dsc_m08"
+VAL_CACHE_DIR = "data/cache/val_seen_frames_chunk4_his4_dsc_m05"
 VAL_U_DATA_DIR = "data/l2am_r2r_v3/val_unseen/6"
-VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_his4_dsc_m08"
+VAL_U_CACHE_DIR = "data/cache/val_unseen_frames_chunk4_his4_dsc_m05"
 
 NUM_GRID_R = 6
 NUM_GRID_C = 6
 HF_CACHE_DIR = "data/hf_model_cache"  # HF 模型缓存路径
-RESUME_FROM_CHECKPOINT = "/mnt/slurmfs-4090node1/homes/dpeng108/l2am_ws/data/l2a_bigbird_action_classifier_chunk4_his4_dsc_m08/checkpoint-31000"  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
+RESUME_FROM_CHECKPOINT = None  # "outputs/l2a_longformer_action_classifier/checkpoint-500"  # 设置为某个检查点路径以从该检查点继续训练，否则为 None
 # model configs
 MODEL_NAME = "google/bigbird-roberta-base"  # 可替换为 roberta-base、 bert-base-uncased、allenai/longformer-base-4096、google/bigbird-roberta-base等
 MAX_LENGTH = 4000  # 根据模型调整最大长度
@@ -34,20 +34,20 @@ NUM_CHUNK = 4  # 与 dataset_utils 一致
 
 # 数据增强比例：从验证集中抽取一部分数据加入训练集
 augment_ratio = 0.96  # 可调整比例
-augment_ratio_u = 0.8  # 可调整比例
+augment_ratio_u = 0.5  # 可调整比例
 
 # training configs
-OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_his4_dsc_m08"
-NUM_EPOCHS = 30
-PER_DEVICE_TRAIN_BATCH_SIZE = 2
-PER_DEVICE_EVAL_BATCH_SIZE = 32
-GRADIENT_ACCUMULATION_STEPS = 4
-LEARNING_RATE = 4e-5
+OUTPUT_DIR = "outputs/l2a_bigbird_action_classifier_chunk4_his4_dsc_m05"
+NUM_EPOCHS = 18
+PER_DEVICE_TRAIN_BATCH_SIZE = int(2*4)
+PER_DEVICE_EVAL_BATCH_SIZE = int(30*4)
+GRADIENT_ACCUMULATION_STEPS = 2
+LEARNING_RATE = 8e-5
 WARMUP_RATIO = 0.08  # 学习率预热比例
-WANDB_RUN_NAME = "bigbird-action_chunk4_his4_dsc_m08"  # 可选：设置 wandb 实验名称
-LOGGING_STEPS = 100
-EVAL_STEPS = 1000
-SAVE_STEPS = 1000
+WANDB_RUN_NAME = "bigbird-action_chunk4_his4_dsc_m05"  # 可选：设置 wandb 实验名称
+LOGGING_STEPS = 10
+EVAL_STEPS = 500
+SAVE_STEPS = 500
 
 # ======================
 # 2. 加载或预处理数据集

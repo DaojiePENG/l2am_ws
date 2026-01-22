@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:4                # 显式申请 4 块 GPU（强烈建议加上！）
 #SBATCH --output=train_ddp_chunk4_his4_dsc_m08_%j.out
 #SBATCH --error=train_ddp_chunk4_his4_dsc_m08_%j.err
-#SBATCH --nodelist=4090node2
+#SBATCH --nodelist=3090node1
 
 
 export NCCL_P2P_DISABLE=1
